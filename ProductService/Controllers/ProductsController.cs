@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNet.OData;
 using ProductService.Models;
+using System;
 using System.Data.Entity;
 using System.Data.Entity.Infrastructure;
 using System.Linq;
@@ -20,6 +21,7 @@ namespace ProductService.Controllers
             db.Dispose();
             base.Dispose(disposing);
         }
+        #region CRUD
         [EnableQuery]
         public IQueryable<Product> Get()
         {
@@ -79,6 +81,101 @@ namespace ProductService.Controllers
             }
             db.Products.Remove(product);
             await db.SaveChangesAsync();
+            return StatusCode(HttpStatusCode.NoContent);
+        }
+        #endregion
+        // GET /Products(1)/Supplier
+        [EnableQuery]
+        public SingleResult<Supplier> GetSupplier([FromODataUri] int key)
+        {
+            var result = db.Products.Where(m => m.Id == key).Select(m => m.Supplier);
+            return SingleResult.Create(result);
+        }
+        // GET /Suppliers(1)/Products
+        [EnableQuery]
+        public IQueryable<Product> GetProducts([FromODataUri] int key)
+        {
+            return db.Suppliers.Where(m => m.Id.Equals(key)).SelectMany(m => m.Products);
+        }
+
+        [AcceptVerbs("POST", "PUT")]
+        public async Task<IHttpActionResult> CreateRef([FromODataUri] int key,
+        string navigationProperty, [FromBody] Uri link)
+        {
+            var product = await db.Products.SingleOrDefaultAsync(p => p.Id == key);
+            if (product == null)
+            {
+                return NotFound();
+            }
+            switch (navigationProperty)
+            {
+                case "Supplier":
+                    // Note: The code for GetKeyFromUri is shown later in this topic.
+                    var relatedKey = Helpers.GetKeyFromUri<int>(Request, link);
+                    var supplier = await db.Suppliers.SingleOrDefaultAsync(f => f.Id == relatedKey);
+                    if (supplier == null)
+                    {
+                        return NotFound();
+                    }
+
+                    product.Supplier = supplier;
+                    break;
+
+                default:
+                    return StatusCode(HttpStatusCode.NotImplemented);
+            }
+            await db.SaveChangesAsync();
+            return StatusCode(HttpStatusCode.NoContent);
+        }
+        public async Task<IHttpActionResult> DeleteRef([FromODataUri] int key, string navigationProperty, [FromBody] Uri link)
+        {
+            var product = db.Products.SingleOrDefault(p => p.Id == key);
+            if (product == null)
+            {
+                return NotFound();
+            }
+
+            switch (navigationProperty)
+            {
+                case "Supplier":
+                    product.Supplier = null;
+                    break;
+
+                default:
+                    return StatusCode(HttpStatusCode.NotImplemented);
+            }
+            await db.SaveChangesAsync();
+
+            return StatusCode(HttpStatusCode.NoContent);
+        }
+
+        public async Task<IHttpActionResult> DeleteRef([FromODataUri] int key,
+       [FromODataUri] string relatedKey, string navigationProperty)
+        {
+            var supplier = await db.Suppliers.SingleOrDefaultAsync(p => p.Id == key);
+            if (supplier == null)
+            {
+                return StatusCode(HttpStatusCode.NotFound);
+            }
+
+            switch (navigationProperty)
+            {
+                case "Products":
+                    var productId = Convert.ToInt32(relatedKey);
+                    var product = await db.Products.SingleOrDefaultAsync(p => p.Id == productId);
+
+                    if (product == null)
+                    {
+                        return NotFound();
+                    }
+                    product.Supplier = null;
+                    break;
+                default:
+                    return StatusCode(HttpStatusCode.NotImplemented);
+
+            }
+            await db.SaveChangesAsync();
+
             return StatusCode(HttpStatusCode.NoContent);
         }
     }
