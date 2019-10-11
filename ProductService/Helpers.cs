@@ -1,11 +1,11 @@
-﻿using Microsoft.AspNet.OData.Extensions;
+﻿
 using Microsoft.OData.UriParser;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Web.Http.Routing;
-
+using System.Web.OData.Extensions;
 
 namespace ProductService
 {
